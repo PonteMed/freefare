@@ -42,15 +42,15 @@ type Tag interface {
 
 // Generic tag structure to hold all the underlying details
 type tag struct {
-	ctag C.MifareTag
+	ctag C.FreefareTag
 	dev  nfc.Device
-	info *C.nfc_iso14443a_info // may be nil
+	info *C.nfc_target // may be nil
 	*finalizee
 }
 
-// Wrap a C.MifareTag and set a finalizer to automatically free the tag once it
+// Wrap a C.FreefareTag and set a finalizer to automatically free the tag once it
 // becomes unreachable.
-func wrapTag(t C.MifareTag, d nfc.Device, i *C.nfc_iso14443a_info) Tag {
+func wrapTag(t C.FreefareTag, d nfc.Device, i *C.nfc_target) Tag {
 	tag := &tag{t, d, i, newFinalizee(unsafe.Pointer(t))}
 	var aTag Tag
 	switch tag.Type() {
@@ -138,7 +138,7 @@ func GetTags(d nfc.Device) ([]Tag, error) {
 
 		iptr := uintptr(unsafe.Pointer(tagptr))
 		iptr += unsafe.Sizeof(*tagptr)
-		tagptr = (*C.MifareTag)(unsafe.Pointer(iptr))
+		tagptr = (*C.FreefareTag)(unsafe.Pointer(iptr))
 	}
 
 	return tags, nil
@@ -147,7 +147,7 @@ func GetTags(d nfc.Device) ([]Tag, error) {
 // Automagically allocate a Tag given a device and target info. The Go
 // wrapper takes care of allocating and deallocating Tags. No precautions
 // are needed. The Baud field of the info parameter is not evaluated.
-func NewTag(d nfc.Device, info *nfc.ISO14443aTarget) (Tag, error) {
+func NewTag(d nfc.Device, info nfc.Target) (Tag, error) {
 	dd := devicePointer(d)
 	if dd == nil {
 		return nil, errors.New("device closed")
@@ -156,7 +156,7 @@ func NewTag(d nfc.Device, info *nfc.ISO14443aTarget) (Tag, error) {
 	// Marshall() actually returns an nfc_target, but it's first member is
 	// an nfc_iso14443a_info so this is safe, although we waste a couple of
 	// bytes.1
-	cinfo := (*C.nfc_iso14443a_info)(unsafe.Pointer(info.Marshall()))
+	cinfo := (*C.nfc_target)(unsafe.Pointer(info.Marshall()))
 	ctag, err := C.freefare_tag_new(dd, *cinfo)
 	defer C.free(unsafe.Pointer(ctag))
 	if ctag == nil {
@@ -172,8 +172,8 @@ func NewTag(d nfc.Device, info *nfc.ISO14443aTarget) (Tag, error) {
 	return wrapTag(ctag, d, cinfo), nil
 }
 
-// Get a pointer to the wrapped MifareTag structure. Be careful with this
-// pointer: This wrapper deallocates the MifareTag once the associated Tag
+// Get a pointer to the wrapped FreefareTag structure. Be careful with this
+// pointer: This wrapper deallocates the FreefareTag once the associated Tag
 // object becomes unreachable. Always keep a reference to the Tag structure when
 // doing fancy stuff with the pointer!
 //
